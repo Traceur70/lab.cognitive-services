@@ -1,7 +1,6 @@
 using Azure;
 using Azure.AI.TextAnalytics;
 using Microsoft.CognitiveServices.Speech;
-using Microsoft.CognitiveServices.Speech.Audio;
 using Spectre.Console;
 
 public class LabSpeechService
@@ -11,50 +10,44 @@ public class LabSpeechService
     private static readonly TextAnalyticsClient client = new(new Uri(Configuration.Instance.CognitiveServicesEndPoint), credential);
 
 
-    public void RecognizeLinkedEntities()
-    {
-        var result = client.RecognizeLinkedEntities(Helpers.PromptText());
-        Console.WriteLine(string.Join(", ", result.Value.Select(v => v.Url)));
-    }
-
     public void RecognizeEntities()
     {
         var result = client.RecognizeEntities(Helpers.PromptText());
         Console.WriteLine(string.Join(", ", result.Value.Select(v => v.Text)));
     }
 
-    public void AnalyzeSentiment()
-    {
-        var result = client.AnalyzeSentiment(Helpers.PromptText());
-        AnsiConsole.Write(new BarChart { Width = 80 }
-            // .ShowPercentage()
-            .AddItem("Positive", Math.Ceiling(result.Value.ConfidenceScores.Positive * 100), Color.Green)
-            .AddItem("Neutral", Math.Ceiling(result.Value.ConfidenceScores.Neutral * 100), Color.Blue)
-            .AddItem("Negative", Math.Ceiling(result.Value.ConfidenceScores.Negative * 100), Color.Red));
-    }
 
 
     public void ExtractKeyPhrases()
     {
         var input = Helpers.PromptText();
-        var result = client.ExtractKeyPhrases(input);
-        var keyphrasesNodes = new Tree("[bold][/]");
-        Helpers.WriteInPanel("Key phrases", result.Value.OrderBy(v => v).ToArray());
-        Console.WriteLine("");
+
+        var language = client.DetectLanguage(input);
+        var confidenceColor = language.Value.ConfidenceScore switch
+        {
+            var score when score > 0.8 => Color.Green,
+            var score when score > 0.5 => Color.Yellow,
+            _ => Color.Red
+        };
+        Helpers.WriteInPanel("Language", $"{language.Value.Name} ({language.Value.Iso6391Name}) [{confidenceColor}]{language.Value.ConfidenceScore.ToString("P0")}[/]");
+
+        var keyphrases = client.ExtractKeyPhrases(input);
+        Helpers.WriteInPanel("Key phrases", keyphrases.Value.OrderBy(v => v).ToArray());
+        
+        var linkedEntities = client.RecognizeLinkedEntities(input)
+            .Value
+            .OrderBy(v => v.Name)
+            .Select(v => $"{v.Name} => [link={v.Url}]{v.DataSource}[/]")
+            .ToArray();
+        Helpers.WriteInPanel("Linked entities", linkedEntities);
 
         var sentiments = client.AnalyzeSentiment(input);
-        Helpers.WriteInPanel("Sentiments", new Panel(new BreakdownChart()
-                .ShowPercentage()
-                .Width(60)
-                .AddItem("Positive", Math.Ceiling(sentiments.Value.ConfidenceScores.Positive * 100), Color.Green)
-                .AddItem("Neutral", Math.Ceiling(sentiments.Value.ConfidenceScores.Neutral * 100), Color.Blue)
-                .AddItem("Negative", Math.Ceiling(sentiments.Value.ConfidenceScores.Negative * 100), Color.Red)));
-    }
-
-    public void DetectLanguage()
-    {
-        var result = client.DetectLanguage(Helpers.PromptText(ConsoleInput.Inline, ConsoleInput.Document, ConsoleInput.Random));
-        Console.WriteLine(result.Value.Name);
+        Helpers.WriteInPanel("Sentiments", new BreakdownChart()
+            .Width(60)
+            .ShowPercentage()
+            .AddItem("Positive", Math.Ceiling(sentiments.Value.ConfidenceScores.Positive * 100), Color.Green)
+            .AddItem("Neutral", Math.Ceiling(sentiments.Value.ConfidenceScores.Neutral * 100), Color.Blue)
+            .AddItem("Negative", Math.Ceiling(sentiments.Value.ConfidenceScores.Negative * 100), Color.Red));
     }
 
     /// <summary>
@@ -69,7 +62,4 @@ public class LabSpeechService
         var speechSynthesizer = new SpeechSynthesizer(speechConfig);
         var result = await speechSynthesizer.SpeakSsmlAsync(Helpers.PromptText(ConsoleInput.Document));
     }
-
-
-
 }

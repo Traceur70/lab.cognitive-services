@@ -6,19 +6,23 @@ using Spectre.Console.Rendering;
 public class Helpers
 {
 
-    public static void WriteInPanel(string header, IRenderable content) =>
+    public static void WriteInPanel(string header, IRenderable content)
+    {
         AnsiConsole.Write(new Panel(content)
         { 
             Header = new($"[bold gray]| {header.ToUpper()} |[/] "),
             Border = BoxBorder.Double
         });
 
+        Console.WriteLine("");
+    }
+
     public static void WriteInPanel(string header, params string[] contents)
     {
         if(contents.Length == 0)
             contents = new[] { "[i]No result[/]" };
         var firstNumberOfCharacters = contents[0].Length;
-        var missingNbOfChars = header.Length + 5 - contents[0].Length;
+        var missingNbOfChars = header.Length + 10 - contents[0].Length;
         if(missingNbOfChars > 0)
         {
             contents[0] += new string(' ', missingNbOfChars);
@@ -28,6 +32,7 @@ public class Helpers
             Header = new($"[bold gray]| {header.ToUpper()} |[/]"),
             Border = BoxBorder.Double
         });
+        Console.WriteLine("");
     }
 
     public static string PromptText(params ConsoleInput[] inputs)
